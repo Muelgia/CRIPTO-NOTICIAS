@@ -9,59 +9,89 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+def pegarNoticias(driver, tag, classe, noticias : list):
+    
+    try:
+        # pega o url atual da pagina
+        urlAtual = driver.current_url
+        print(urlAtual)
+        # transforma o codigo fonte no html 
+        paginaHtml = bs4.BeautifulSoup(driver.page_source, "html.parser")
+        # pega o elemento que vai ser uma "lista"
+        listaNoticias = paginaHtml.find_all(tag, class_=classe)
+        # adiciona cada elemento da lista em outra lista, que é a principal
+        for noticia in listaNoticias:
+            print('ok')
+
+            #adiciona o url da noticia no dicionario
+            linkNoticia = noticia.get("href")
+            #adiciona o titulo da noticia no dicionario
+            noticia =  noticia.text
+
+            noticias.append((noticia, linkNoticia))
+
+    except Exception as e:
+        print(e)
+        print('Erro na função pegar noticías')
+
 # entra até o side do google noticias com filtro de cripto a menos de um dia
-url = 'https://news.google.com/search?q=cripto%20when%3A1d&hl=pt-BR&gl=BR&ceid=BR%3Apt-419'
 
-# pega o codigo fonte da pagina
-requisicao = requests.get(url)
+pesquisa = str(input('Desejo dados das ultimas 24h sobre: \n>>> '))
+# pesquisa = 'bitcoin btc'
+url = f'https://www.google.com/search?q={pesquisa}&tbm=nws&tbs=qdr:d'
 
-# transforma o codigo fonte no html 
-paginaHtml = bs4.BeautifulSoup(requisicao.text, "html.parser")
+chrome_options = Options()
+chrome_options.add_argument("--headless")  # Executar no modo headless
 
-listaNoticias = paginaHtml.find_all("a", class_='JtKRv')
+service = Service(ChromeDriverManager().install())
+driver = webdriver.Chrome(service=service, options=chrome_options)
 
-print(len(listaNoticias))
+driver.get(url)
 
+wait = WebDriverWait(driver, 3)
 
-for item in listaNoticias:
-    
-    # titulo da noticia
-    tituloNoticia = item.text
-    print(tituloNoticia)
+noticias = []
 
-    # link da noticia do google news
-    linkNoticia = item.get("href")
-    linkNoticia = linkNoticia[1:]
-    linkNoticia = 'https://news.google.com' + linkNoticia 
-    
+while True:
 
-    chrome_options = Options()
-    # chrome_options.add_argument("--headless")  # Executar no modo headless
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    
+    pegarNoticias(driver=driver, tag='a', classe='WlydOe', noticias=noticias)
 
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-
-    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-        "source": """
-        Object.defineProperty(navigator, 'webdriver', {
-        get: () => undefined
-        })
-        """
-})
+    print(noticias)
 
     try:
-        # Acessar o site desejado
-        driver.get(linkNoticia)
-        sleep(20)
-
-        print(driver.current_url)
-
-    except: 
+        
+        avancaPagina = wait.until(EC.presence_of_element_located((By.ID, 'pnnext')))
+        avancaPagina.click()
         continue
-    
-driver.quit()
+
+    except:
+        print('Fim das páginas')
+        break
+
+# evita algumas detecções de bot
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+}
+
+# para cada noticia que foi adicionada na lista, entra no site e pega todos os <p>
+for link in noticias:
+    try:
+        textoNoticia = ''    
+        responseLink = requests.get(link[1], headers=headers)
+        paginaLink = bs4.BeautifulSoup(responseLink.text, "html.parser")
+        # pega o elemento que vai ser uma "lista"
+        noticiaLink = paginaLink.find_all("p")
+
+        for p in noticiaLink:
+            textoNoticia += p.text + "\n"
+
+        print(f'Noticia do site {link[1]} pega com sucesso!')
+    except:
+        print(f'Erro ao pegar noticia do site {link[1]}')
+        pass
+
+
+   
 
 
 
